@@ -76,10 +76,9 @@ def _poll_once():
         for ch in [c for c in channels if c.get("type") in TEXT_TYPES]:
             cid, cname = ch["id"], ch.get("name", "")
             last = _get_last_id(cid)
-            retention_start = time.time() - 7 * 86400
-            after = last or _time_to_snowflake(retention_start)
+            after = last or _time_to_snowflake(time.time())
             try:
-                rows, newest = _fetch_channel(cid, gname, cname, after, None if last else 1000)
+                rows, newest = _fetch_channel(cid, gname, cname, after, None)
                 if rows: db.insert(rows)
                 _set_last_id(cid, newest if rows else (after if not last else last))
             except TokenExpired: raise

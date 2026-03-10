@@ -24,28 +24,6 @@ def _group_name(entity) -> str:
         return entity.first_name or "Unknown"
     return getattr(entity, "title", "Unknown")
 
-async def backfill():
-    """启动时补拉最近1周数据"""
-    cutoff = time.time() - 7 * 86400
-    dialogs = await _client.get_dialogs()
-    for d in dialogs:
-        rows = []
-        try:
-            async for msg in _client.iter_messages(d.entity, limit=500):
-                if msg.date.timestamp() < cutoff: break
-                if not msg.text: continue
-                sender = _group_name(msg.sender) if msg.sender else d.name
-                rows.append((
-                    f"tg-{msg.id}-{d.id}", "tg",
-                    d.name, sender, msg.text,
-                    msg.date.timestamp()
-                ))
-        except Exception as e:
-            logger.warning(f"backfill {d.name}: {e}")
-        if rows:
-            db.insert(rows)
-    logger.info("Telegram backfill 完成")
-
 def start_listener():
     """注册新消息事件监听，实时入库"""
     @_client.on(events.NewMessage)

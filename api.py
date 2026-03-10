@@ -43,7 +43,6 @@ def _parse_range(hours, start, end):
 async def lifespan(app: FastAPI):
     db.init()
     threading.Thread(target=discord_worker.run_poller, daemon=True).start()
-    await tg_worker.backfill()
     tg_worker.start_listener()
     yield
 
