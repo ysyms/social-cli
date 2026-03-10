@@ -1,7 +1,8 @@
-import asyncio, logging
+import logging, time
 from datetime import datetime, timezone, timedelta
-from telethon import TelegramClient
+from telethon import TelegramClient, events
 from telethon.tl.types import User, Chat, Channel
+import db
 
 logger = logging.getLogger("telegram")
 
@@ -18,6 +19,52 @@ async def init_client():
     await _client.connect()
     return _client
 
+def _group_name(entity) -> str:
+    if hasattr(entity, "first_name"):
+        return entity.first_name or "Unknown"
+    return getattr(entity, "title", "Unknown")
+
+async def backfill():
+    """启动时补拉最近1周数据"""
+    cutoff = time.time() - 7 * 86400
+    dialogs = await _client.get_dialogs()
+    for d in dialogs:
+        rows = []
+        try:
+            async for msg in _client.iter_messages(d.entity, limit=500):
+                if msg.date.timestamp() < cutoff: break
+                if not msg.text: continue
+                sender = _group_name(msg.sender) if msg.sender else d.name
+                rows.append((
+                    f"tg-{msg.id}-{d.id}", "tg",
+                    d.name, sender, msg.text,
+                    msg.date.timestamp()
+                ))
+        except Exception as e:
+            logger.warning(f"backfill {d.name}: {e}")
+        if rows:
+            db.insert(rows)
+    logger.info("Telegram backfill 完成")
+
+def start_listener():
+    """注册新消息事件监听，实时入库"""
+    @_client.on(events.NewMessage)
+    async def handler(event):
+        try:
+            msg = event.message
+            if not msg.text: return
+            chat = await event.get_chat()
+            group = _group_name(chat)
+            sender_entity = await event.get_sender()
+            sender = _group_name(sender_entity) if sender_entity else group
+            db.insert([(
+                f"tg-{msg.id}-{chat.id}", "tg",
+                group, sender, msg.text,
+                msg.date.timestamp()
+            )])
+        except Exception as e:
+            logger.warning(f"消息入库失败: {e}")
+
 async def get_dialogs():
     dialogs = await _client.get_dialogs()
     result = {"private": [], "groups": []}
@@ -25,23 +72,6 @@ async def get_dialogs():
         item = {"id": d.id, "name": d.name, "unread": d.unread_count}
         if isinstance(d.entity, User):
             result["private"].append(item)
-        elif isinstance(d.entity, (Chat, Channel)):
+        else:
             result["groups"].append(item)
     return result
-
-async def get_recent(hours: float) -> str:
-    cutoff = datetime.now(tz=timezone.utc).timestamp() - hours * 3600
-    dialogs = await _client.get_dialogs()
-    lines = []
-    for d in dialogs:
-        msgs = []
-        async for msg in _client.iter_messages(d.entity, limit=100):
-            if msg.date.timestamp() < cutoff: break
-            if not msg.text: continue
-            sender = (getattr(msg.sender, "first_name", None) or getattr(msg.sender, "title", "Unknown")) if msg.sender else "Unknown"
-            t = msg.date.astimezone(CST).strftime("%H:%M")
-            msgs.append(f"  {t} {sender}: {msg.text}")
-        if msgs:
-            lines.append(f"[TG] {d.name}")
-            lines.extend(msgs)
-    return "\n".join(lines)
