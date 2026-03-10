@@ -24,14 +24,14 @@ This project uses [Telethon](https://github.com/LonamiWebs/Telethon) — a pure 
 
 **API credentials**
 
-Uses Telegram's own built-in client credentials — no application registration required:
+No registration required. Use Telegram's own built-in client credentials directly:
 
 ```python
 API_ID   = 2040
 API_HASH = "b18441a1ff607e10a989891a5462e627"
 ```
 
-To use your own credentials, register at [my.telegram.org/apps](https://my.telegram.org/apps).
+These are already hardcoded in `tg_worker.py` — just run the CLI and log in with your phone number.
 
 ---
 
