@@ -54,7 +54,7 @@ Requires a Discord **user token** (not a Bot token).
 
 ```bash
 git clone https://github.com/ysyms/social-cli.git
-cd social-monitor
+cd social-cli
 pip install -r requirements.txt
 ```
 
